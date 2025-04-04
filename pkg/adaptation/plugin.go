@@ -522,6 +522,14 @@ func (p *plugin) synchronize(ctx context.Context, pods []*PodSandbox, containers
 	return rpl.Update, nil
 }
 
+// validate proposed changes to containers.
+func (p *plugin) validate(ctx context.Context, req *ValidateRequest) (*ValidateResponse, error) {
+	ctx, cancel := context.WithTimeout(ctx, getPluginRequestTimeout())
+	defer cancel()
+
+	rpl, err := p.impl.Validate(ctx, req)
+}
+
 func recalcObjsPerSyncMsg(pods, ctrs int, err error) (int, int, error) {
 	const (
 		minObjsPerMsg = 8

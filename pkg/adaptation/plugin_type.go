@@ -49,6 +49,13 @@ func (p *pluginType) Configure(ctx context.Context, req *ConfigureRequest) (*Con
 	return p.ttrpcImpl.Configure(ctx, req)
 }
 
+func (p *pluginType) Validate(ctx context.Context, req *ValidateRequest) (*ValidateResponse, error) {
+	if p.wasmImpl != nil {
+		return p.wasmImpl.Validate(ctx, req)
+	}
+	return p.ttrpcImpl.Validate(ctx, req)
+}
+
 func (p *pluginType) CreateContainer(ctx context.Context, req *CreateContainerRequest) (*CreateContainerResponse, error) {
 	if p.wasmImpl != nil {
 		return p.wasmImpl.CreateContainer(ctx, req)

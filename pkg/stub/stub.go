@@ -63,6 +63,14 @@ type ShutdownInterface interface {
 	Shutdown(context.Context)
 }
 
+// ValidateInterface handles a Validate API request.
+type ValidateInterface interface {
+	// Validate proposed changes to containers.
+	// TODO: Using the request and response types isn't a pattern for the
+	// stub library, how should we handle this?
+	Validate(context.Context, *api.ValidateRequest) (*api.ValidateResponse, error)
+}
+
 // RunPodInterface handles RunPodSandbox API events.
 type RunPodInterface interface {
 	// RunPodSandbox relays a RunPodSandbox event to the plugin.
@@ -295,6 +303,7 @@ type stub struct {
 type handlers struct {
 	Configure            func(context.Context, string, string, string) (api.EventMask, error)
 	Synchronize          func(context.Context, []*api.PodSandbox, []*api.Container) ([]*api.ContainerUpdate, error)
+	Validate             func(context.Context, *api.ValidateRequest) (*api.ValidateResponse, error)
 	Shutdown             func(context.Context)
 	RunPodSandbox        func(context.Context, *api.PodSandbox) error
 	UpdatePodSandbox     func(context.Context, *api.PodSandbox, *api.LinuxResources, *api.LinuxResources) error
@@ -708,8 +717,12 @@ func (stub *stub) deliverSync(ctx context.Context, req *api.SynchronizeRequest) 
 }
 
 // Validate proposed changes to containers.
-func (stub *stub) Validate(_ context.Context, _ *api.ValidateRequest) (*api.ValidateResponse, error) {
-	return nil, errors.New("unimplemented")
+func (stub *stub) Validate(ctx context.Context, req *api.ValidateRequest) (*api.ValidateResponse, error) {
+	handler := stub.handlers.Validate
+	if handler != nil {
+		return handler(ctx, req)
+	}
+	return &api.ValidateResponse{Allowed: true}, nil
 }
 
 // Shutdown the plugin.
@@ -845,6 +858,9 @@ func (stub *stub) setupHandlers() error {
 	}
 	if plugin, ok := stub.plugin.(ShutdownInterface); ok {
 		stub.handlers.Shutdown = plugin.Shutdown
+	}
+	if plugin, ok := stub.plugin.(ValidateInterface); ok {
+		stub.handlers.Validate = plugin.Validate
 	}
 
 	if plugin, ok := stub.plugin.(RunPodInterface); ok {
