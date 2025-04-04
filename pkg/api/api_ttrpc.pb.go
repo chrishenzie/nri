@@ -70,6 +70,7 @@ type PluginService interface {
 	StopContainer(context.Context, *StopContainerRequest) (*StopContainerResponse, error)
 	UpdatePodSandbox(context.Context, *UpdatePodSandboxRequest) (*UpdatePodSandboxResponse, error)
 	StateChange(context.Context, *StateChangeEvent) (*Empty, error)
+	Validate(context.Context, *ValidateRequest) (*ValidateResponse, error)
 }
 
 func RegisterPluginService(srv *ttrpc.Server, svc PluginService) {
@@ -130,6 +131,13 @@ func RegisterPluginService(srv *ttrpc.Server, svc PluginService) {
 					return nil, err
 				}
 				return svc.StateChange(ctx, &req)
+			},
+			"Validate": func(ctx context.Context, unmarshal func(interface{}) error) (interface{}, error) {
+				var req ValidateRequest
+				if err := unmarshal(&req); err != nil {
+					return nil, err
+				}
+				return svc.Validate(ctx, &req)
 			},
 		},
 	})
@@ -204,6 +212,14 @@ func (c *pluginClient) UpdatePodSandbox(ctx context.Context, req *UpdatePodSandb
 func (c *pluginClient) StateChange(ctx context.Context, req *StateChangeEvent) (*Empty, error) {
 	var resp Empty
 	if err := c.client.Call(ctx, "nri.pkg.api.v1alpha1.Plugin", "StateChange", req, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
+func (c *pluginClient) Validate(ctx context.Context, req *ValidateRequest) (*ValidateResponse, error) {
+	var resp ValidateResponse
+	if err := c.client.Call(ctx, "nri.pkg.api.v1alpha1.Plugin", "Validate", req, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil

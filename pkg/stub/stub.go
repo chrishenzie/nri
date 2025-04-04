@@ -707,6 +707,11 @@ func (stub *stub) deliverSync(ctx context.Context, req *api.SynchronizeRequest) 
 	}, err
 }
 
+// Validate proposed changes to containers.
+func (stub *stub) Validate(_ context.Context, _ *api.ValidateRequest) (*api.ValidateResponse, error) {
+	return nil, errors.New("unimplemented")
+}
+
 // Shutdown the plugin.
 func (stub *stub) Shutdown(ctx context.Context, _ *api.ShutdownRequest) (*api.ShutdownResponse, error) {
 	handler := stub.handlers.Shutdown

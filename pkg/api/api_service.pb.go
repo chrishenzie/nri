@@ -83,6 +83,9 @@ type Plugin interface {
 	// plugin-specific processing which needs to occur in connection with any of
 	// these events.
 	StateChange(context.Context, *StateChangeEvent) (*Empty, error)
+	// Validate the final proposed changes after all plugins have run for a given
+	// event. If no plugins support this RPC, then a default policy will apply.
+	Validate(context.Context, *ValidateRequest) (*ValidateResponse, error)
 }
 
 // go:plugin type=host

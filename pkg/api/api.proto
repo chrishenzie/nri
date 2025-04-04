@@ -109,6 +109,10 @@ service Plugin {
   // plugin-specific processing which needs to occur in connection with any of
   // these events.
   rpc StateChange(StateChangeEvent) returns (Empty);
+
+  // Validate the final proposed changes after all plugins have run for a given
+  // event. If no plugins support this RPC, then a default policy will apply.
+  rpc Validate(ValidateRequest) returns (ValidateResponse);
 }
 
 // go:plugin type=host
@@ -219,6 +223,29 @@ message UpdatePodSandboxRequest {
 }
 
 message UpdatePodSandboxResponse {}
+
+message ValidateRequest {
+  // Original request to create container.
+  CreateContainerRequest create_container = 1;
+  // Original request to update container.
+  UpdateContainerRequest update_container = 2;
+  // Original request to stop container.
+  StopContainerRequest stop_container = 3;
+
+  // Requested adjustments to container being created.
+  ContainerAdjustment container_adjustment = 4;
+  // Requested updates to containers.
+  repeated ContainerUpdate container_updates = 5;
+  // Requested eviction of containers.
+  repeated ContainerEviction container_evictions = 6;
+}
+
+message ValidateResponse {
+  // Whether the proposed changes are allowed.
+  bool allowed = 1;
+  // Additional context for the decision.
+  string reason = 2;
+}
 
 message StateChangeEvent {
   // Event type of notification.

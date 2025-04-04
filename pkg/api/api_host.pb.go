@@ -196,6 +196,10 @@ func (p *PluginPlugin) Load(ctx context.Context, pluginPath string, hostFunction
 	if statechange == nil {
 		return nil, errors.New("plugin_state_change is not exported")
 	}
+	validate := module.ExportedFunction("plugin_validate")
+	if validate == nil {
+		return nil, errors.New("plugin_validate is not exported")
+	}
 
 	malloc := module.ExportedFunction("malloc")
 	if malloc == nil {
@@ -219,6 +223,7 @@ func (p *PluginPlugin) Load(ctx context.Context, pluginPath string, hostFunction
 		stopcontainer:    stopcontainer,
 		updatepodsandbox: updatepodsandbox,
 		statechange:      statechange,
+		validate:         validate,
 	}, nil
 }
 
@@ -242,6 +247,7 @@ type pluginPlugin struct {
 	stopcontainer    api.Function
 	updatepodsandbox api.Function
 	statechange      api.Function
+	validate         api.Function
 }
 
 func (p *pluginPlugin) Configure(ctx context.Context, request *ConfigureRequest) (*ConfigureResponse, error) {
@@ -726,6 +732,67 @@ func (p *pluginPlugin) StateChange(ctx context.Context, request *StateChangeEven
 	}
 
 	response := new(Empty)
+	if err = response.UnmarshalVT(bytes); err != nil {
+		return nil, err
+	}
+
+	return response, nil
+}
+func (p *pluginPlugin) Validate(ctx context.Context, request *ValidateRequest) (*ValidateResponse, error) {
+	data, err := request.MarshalVT()
+	if err != nil {
+		return nil, err
+	}
+	dataSize := uint64(len(data))
+
+	var dataPtr uint64
+	// If the input data is not empty, we must allocate the in-Wasm memory to store it, and pass to the plugin.
+	if dataSize != 0 {
+		results, err := p.malloc.Call(ctx, dataSize)
+		if err != nil {
+			return nil, err
+		}
+		dataPtr = results[0]
+		// This pointer is managed by TinyGo, but TinyGo is unaware of external usage.
+		// So, we have to free it when finished
+		defer p.free.Call(ctx, dataPtr)
+
+		// The pointer is a linear memory offset, which is where we write the name.
+		if !p.module.Memory().Write(uint32(dataPtr), data) {
+			return nil, fmt.Errorf("Memory.Write(%d, %d) out of range of memory size %d", dataPtr, dataSize, p.module.Memory().Size())
+		}
+	}
+
+	ptrSize, err := p.validate.Call(ctx, dataPtr, dataSize)
+	if err != nil {
+		return nil, err
+	}
+
+	resPtr := uint32(ptrSize[0] >> 32)
+	resSize := uint32(ptrSize[0])
+	var isErrResponse bool
+	if (resSize & (1 << 31)) > 0 {
+		isErrResponse = true
+		resSize &^= (1 << 31)
+	}
+
+	// We don't need the memory after deserialization: make sure it is freed.
+	if resPtr != 0 {
+		defer p.free.Call(ctx, uint64(resPtr))
+	}
+
+	// The pointer is a linear memory offset, which is where we write the name.
+	bytes, ok := p.module.Memory().Read(resPtr, resSize)
+	if !ok {
+		return nil, fmt.Errorf("Memory.Read(%d, %d) out of range of memory size %d",
+			resPtr, resSize, p.module.Memory().Size())
+	}
+
+	if isErrResponse {
+		return nil, errors.New(string(bytes))
+	}
+
+	response := new(ValidateResponse)
 	if err = response.UnmarshalVT(bytes); err != nil {
 		return nil, err
 	}
